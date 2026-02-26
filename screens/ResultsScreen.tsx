@@ -9,38 +9,13 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { getCityAbbr } from '../lib/cityUtils';
 
 interface ResultsScreenProps {
   userVote: boolean | null;
   city: string;
   onVoteAgain: () => void;
 }
-
-const getCityAbbr = (city: string): string => {
-  const abbrs: Record<string, string> = {
-    'New York': 'NYC',
-    'Los Angeles': 'LA',
-    'Chicago': 'CHI',
-    'Houston': 'HOU',
-    'Miami': 'MIA',
-    'London': 'LDN',
-    'Paris': 'PAR',
-    'Berlin': 'BER',
-    'Tokyo': 'TYO',
-    'Sydney': 'SYD',
-    'Toronto': 'TOR',
-    'Austin': 'ATX',
-    'Nashville': 'NSH',
-    'Denver': 'DEN',
-    'Atlanta': 'ATL',
-    'Las Vegas': 'LAS',
-    'New Orleans': 'NOLA',
-    'Seattle': 'SEA',
-    'Portland': 'PDX',
-    'Boston': 'BOS',
-  };
-  return abbrs[city] || city.slice(0, 3).toUpperCase();
-};
 
 const generateResults = (city: string, userVote: boolean | null) => {
   const seed = city.split('').reduce((a, c) => a + c.charCodeAt(0), 0);

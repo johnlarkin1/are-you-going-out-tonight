@@ -17,17 +17,25 @@ export default function App() {
   }, []);
 
   const checkOnboarding = async () => {
-    const city = await AsyncStorage.getItem('userCity');
-    const onboarded = await AsyncStorage.getItem('onboarded');
-    if (onboarded && city) {
-      setUserCity(city);
-      setScreen('vote');
+    try {
+      const city = await AsyncStorage.getItem('userCity');
+      const onboarded = await AsyncStorage.getItem('onboarded');
+      if (onboarded && city) {
+        setUserCity(city);
+        setScreen('vote');
+      }
+    } catch {
+      // AsyncStorage read failed — stay on onboarding
     }
   };
 
   const handleOnboardingComplete = async (city: string) => {
-    await AsyncStorage.setItem('onboarded', 'true');
-    await AsyncStorage.setItem('userCity', city);
+    try {
+      await AsyncStorage.setItem('onboarded', 'true');
+      await AsyncStorage.setItem('userCity', city);
+    } catch {
+      // AsyncStorage write failed — continue anyway
+    }
     setUserCity(city);
     setScreen('vote');
   };
