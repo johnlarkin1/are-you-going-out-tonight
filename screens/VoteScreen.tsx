@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,23 @@ import {
   SafeAreaView,
   Animated,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
+import { useAuth } from '@clerk/clerk-expo';
 import { getCityAbbr } from '../lib/cityUtils';
+import { submitVote, ApiError } from '../lib/api';
 
 interface VoteScreenProps {
   onVote: (vote: boolean) => void;
+  onAlreadyVoted: () => void;
   city: string;
 }
 
-export default function VoteScreen({ onVote, city }: VoteScreenProps) {
+export default function VoteScreen({ onVote, onAlreadyVoted, city }: VoteScreenProps) {
+  const { getToken } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const yesScale = useRef(new Animated.Value(1)).current;
@@ -37,11 +45,29 @@ export default function VoteScreen({ onVote, city }: VoteScreenProps) {
     ]).start();
   }, []);
 
-  const handlePress = (vote: boolean, scaleRef: Animated.Value) => {
+  const handlePress = async (vote: boolean, scaleRef: Animated.Value) => {
+    if (loading) return;
+
     Animated.sequence([
       Animated.spring(scaleRef, { toValue: 0.93, useNativeDriver: true, tension: 200 }),
       Animated.spring(scaleRef, { toValue: 1, useNativeDriver: true, tension: 200 }),
-    ]).start(() => onVote(vote));
+    ]).start();
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await submitVote({ city, vote }, getToken);
+      onVote(vote);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'ALREADY_VOTED') {
+        onAlreadyVoted();
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Something went wrong');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,7 +80,7 @@ export default function VoteScreen({ onVote, city }: VoteScreenProps) {
       >
         {/* Top bar */}
         <View style={styles.topSection}>
-          <Text style={styles.cityBadge}>📍 {getCityAbbr(city)}</Text>
+          <Text style={styles.cityBadge}>{getCityAbbr(city)}</Text>
         </View>
 
         {/* Center content */}
@@ -66,26 +92,42 @@ export default function VoteScreen({ onVote, city }: VoteScreenProps) {
         <View style={styles.buttonsSection}>
           <Animated.View style={{ transform: [{ scale: yesScale }], flex: 1 }}>
             <TouchableOpacity
-              style={styles.yesButton}
+              style={[styles.yesButton, loading && styles.buttonDisabled]}
               onPress={() => handlePress(true, yesScale)}
               activeOpacity={1}
+              disabled={loading}
             >
-              <Text style={styles.yesText}>yes</Text>
+              {loading ? (
+                <ActivityIndicator color="#000000" />
+              ) : (
+                <Text style={styles.yesText}>yes</Text>
+              )}
             </TouchableOpacity>
           </Animated.View>
 
           <Animated.View style={{ transform: [{ scale: noScale }], flex: 1 }}>
             <TouchableOpacity
-              style={styles.noButton}
+              style={[styles.noButton, loading && styles.buttonDisabled]}
               onPress={() => handlePress(false, noScale)}
               activeOpacity={1}
+              disabled={loading}
             >
-              <Text style={styles.noText}>no</Text>
+              {loading ? (
+                <ActivityIndicator color="#000000" />
+              ) : (
+                <Text style={styles.noText}>no</Text>
+              )}
             </TouchableOpacity>
           </Animated.View>
         </View>
 
-        <Text style={styles.footer}>resets at midnight</Text>
+        {error && (
+          <TouchableOpacity onPress={() => setError(null)}>
+            <Text style={styles.errorText}>{error} — tap to dismiss</Text>
+          </TouchableOpacity>
+        )}
+
+        <Text style={styles.footer}>resets at midnight ET</Text>
       </Animated.View>
     </SafeAreaView>
   );
@@ -171,13 +213,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E5E5E5',
   },
-  yesEmoji: {
-    fontSize: 28,
-    marginBottom: 4,
-  },
-  noEmoji: {
-    fontSize: 28,
-    marginBottom: 4,
+  buttonDisabled: {
+    opacity: 0.6,
   },
   yesText: {
     fontSize: 22,
@@ -186,6 +223,14 @@ const styles = StyleSheet.create({
   noText: {
     fontSize: 22,
     color: '#000000',
+  },
+  errorText: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#FF3B5C',
+    fontWeight: '500',
+    marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'System',
   },
   footer: {
     textAlign: 'center',

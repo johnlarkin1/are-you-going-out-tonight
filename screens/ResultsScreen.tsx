@@ -8,25 +8,18 @@ import {
   Animated,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { useAuth } from '@clerk/clerk-expo';
 import { getCityAbbr } from '../lib/cityUtils';
+import { fetchResults, ApiError } from '../lib/api';
+import type { ResultsResponse } from '../lib/types';
 
 interface ResultsScreenProps {
   userVote: boolean | null;
   city: string;
   onVoteAgain: () => void;
 }
-
-const generateResults = (city: string, userVote: boolean | null) => {
-  const seed = city.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const baseYes = 35 + (seed % 40);
-  const totalVotes = 120 + (seed % 800);
-  const yesPercent = userVote === true ? Math.min(baseYes + 5, 75) : Math.max(baseYes - 5, 25);
-  const noPercent = 100 - yesPercent;
-  const yesVotes = Math.round((yesPercent / 100) * totalVotes);
-  const noVotes = totalVotes - yesVotes;
-  return { yesPercent, noPercent, yesVotes, noVotes, totalVotes };
-};
 
 const getResultHeadline = (yesPercent: number, userVote: boolean | null): { headline: string; sub: string } => {
   if (yesPercent >= 65) {
@@ -53,14 +46,36 @@ const getResultHeadline = (yesPercent: number, userVote: boolean | null): { head
 };
 
 export default function ResultsScreen({ userVote, city, onVoteAgain }: ResultsScreenProps) {
-  const results = generateResults(city, userVote);
-  const { headline, sub } = getResultHeadline(results.yesPercent, userVote);
+  const { getToken } = useAuth();
+  const [results, setResults] = useState<ResultsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const yesBarAnim = useRef(new Animated.Value(0)).current;
   const noBarAnim = useRef(new Animated.Value(0)).current;
 
+  const loadResults = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchResults(city, getToken);
+      setResults(data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to load results');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
+    loadResults();
+  }, []);
+
+  // Animate bars when results load
+  useEffect(() => {
+    if (!results) return;
+
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 400,
@@ -70,20 +85,49 @@ export default function ResultsScreen({ userVote, city, onVoteAgain }: ResultsSc
     setTimeout(() => {
       Animated.parallel([
         Animated.spring(yesBarAnim, {
-          toValue: results.yesPercent / 100,
+          toValue: results.yes_percent / 100,
           tension: 40,
           friction: 8,
           useNativeDriver: false,
         }),
         Animated.spring(noBarAnim, {
-          toValue: results.noPercent / 100,
+          toValue: results.no_percent / 100,
           tension: 40,
           friction: 8,
           useNativeDriver: false,
         }),
       ]).start();
     }, 300);
-  }, []);
+  }, [results]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E8848A" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadResults}>
+            <Text style={styles.retryText}>try again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!results) return null;
+
+  const { headline, sub } = results.total_votes > 0
+    ? getResultHeadline(results.yes_percent, userVote)
+    : { headline: "be the first", sub: "no votes yet — you're the pioneer." };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -95,60 +139,72 @@ export default function ResultsScreen({ userVote, city, onVoteAgain }: ResultsSc
             <TouchableOpacity onPress={onVoteAgain} style={styles.backButton} activeOpacity={0.6}>
               <Text style={styles.backText}>←</Text>
             </TouchableOpacity>
-            <Text style={styles.cityBadge}>📍 {getCityAbbr(city)}</Text>
+            <Text style={styles.cityBadge}>{getCityAbbr(city)}</Text>
           </View>
 
-          {/* Headline */}
+          {/* Headline — now using dynamic data */}
           <View style={styles.headlineSection}>
-            <Text style={styles.headline}>the city has spoken</Text>
+            <Text style={styles.headline}>{headline}</Text>
+            <Text style={styles.headlineSub}>{sub}</Text>
           </View>
 
           {/* Stats */}
-          <View style={styles.statsCard}>
-            {/* YES bar */}
-            <View style={styles.barRow}>
-              <View style={styles.barLabelRow}>
-                <Text style={styles.barLabel}>going out</Text>
-                <Text style={styles.barPercent}>{results.yesPercent}%</Text>
+          {results.total_votes > 0 ? (
+            <View style={styles.statsCard}>
+              {/* YES bar */}
+              <View style={styles.barRow}>
+                <View style={styles.barLabelRow}>
+                  <Text style={styles.barLabel}>going out</Text>
+                  <Text style={styles.barPercent}>{results.yes_percent}%</Text>
+                </View>
+                <View style={styles.barTrack}>
+                  <Animated.View
+                    style={[
+                      styles.barFill,
+                      styles.barFillYes,
+                      {
+                        width: yesBarAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0%', '100%'],
+                        }),
+                      },
+                    ]}
+                  />
+                </View>
               </View>
-              <View style={styles.barTrack}>
-                <Animated.View
-                  style={[
-                    styles.barFill,
-                    styles.barFillYes,
-                    {
-                      width: yesBarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]}
-                />
-              </View>
-            </View>
 
-            {/* NO bar */}
-            <View style={styles.barRow}>
-              <View style={styles.barLabelRow}>
-                <Text style={styles.barLabel}>staying in</Text>
-                <Text style={styles.barPercent}>{results.noPercent}%</Text>
+              {/* NO bar */}
+              <View style={styles.barRow}>
+                <View style={styles.barLabelRow}>
+                  <Text style={styles.barLabel}>staying in</Text>
+                  <Text style={styles.barPercent}>{results.no_percent}%</Text>
+                </View>
+                <View style={styles.barTrack}>
+                  <Animated.View
+                    style={[
+                      styles.barFill,
+                      styles.barFillNo,
+                      {
+                        width: noBarAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0%', '100%'],
+                        }),
+                      },
+                    ]}
+                  />
+                </View>
               </View>
-              <View style={styles.barTrack}>
-                <Animated.View
-                  style={[
-                    styles.barFill,
-                    styles.barFillNo,
-                    {
-                      width: noBarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]}
-                />
-              </View>
+
+              <Text style={styles.totalVotes}>
+                {results.total_votes} vote{results.total_votes !== 1 ? 's' : ''} tonight
+              </Text>
             </View>
-          </View>
+          ) : (
+            <View style={styles.statsCard}>
+              <Text style={styles.emptyText}>no votes yet for {city}</Text>
+              <Text style={styles.emptySubtext}>check back later to see results</Text>
+            </View>
+          )}
 
         </ScrollView>
       </Animated.View>
@@ -169,6 +225,31 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 60,
     flexGrow: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#FF3B5C',
+    textAlign: 'center',
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'System',
+  },
+  retryButton: {
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 100,
+  },
+  retryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'System',
   },
   header: {
     flexDirection: 'row',
@@ -260,21 +341,26 @@ const styles = StyleSheet.create({
   barFillNo: {
     backgroundColor: '#D1D1D1',
   },
-  footer: {
+  totalVotes: {
     textAlign: 'center',
-    fontSize: 12,
-    color: '#CCC',
+    fontSize: 13,
+    color: '#999',
     fontWeight: '500',
-    marginBottom: 24,
+    marginTop: 4,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'System',
   },
-  changeLinkContainer: {
-    alignItems: 'center',
+  emptyText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'System',
   },
-  changeLink: {
+  emptySubtext: {
+    textAlign: 'center',
     fontSize: 14,
     color: '#999',
-    textDecorationLine: 'underline',
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'System',
   },
 });

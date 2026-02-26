@@ -62,6 +62,11 @@ function AppContent() {
     setScreen('results');
   };
 
+  const handleAlreadyVoted = () => {
+    // User already voted today — go straight to results
+    setScreen('results');
+  };
+
   const handleVoteAgain = () => {
     setUserVote(null);
     setScreen('vote');
@@ -87,7 +92,7 @@ function AppContent() {
         <OnboardingScreen onComplete={handleOnboardingComplete} />
       )}
       {screen === 'vote' && (
-        <VoteScreen onVote={handleVote} city={userCity} />
+        <VoteScreen onVote={handleVote} onAlreadyVoted={handleAlreadyVoted} city={userCity} />
       )}
       {screen === 'results' && (
         <ResultsScreen userVote={userVote} city={userCity} onVoteAgain={handleVoteAgain} />
