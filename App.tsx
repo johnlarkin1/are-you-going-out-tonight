@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
+import { tokenCache } from './lib/tokenCache';
 import OnboardingScreen from './screens/OnboardingScreen';
+import AuthScreen from './screens/AuthScreen';
 import VoteScreen from './screens/VoteScreen';
 import ResultsScreen from './screens/ResultsScreen';
 
-export type Screen = 'onboarding' | 'vote' | 'results';
+const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
 
-export default function App() {
+export type Screen = 'onboarding' | 'auth' | 'vote' | 'results';
+
+function AppContent() {
+  const { isSignedIn, isLoaded } = useAuth();
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [userCity, setUserCity] = useState<string>('');
   const [userVote, setUserVote] = useState<boolean | null>(null);
@@ -16,13 +22,20 @@ export default function App() {
     checkOnboarding();
   }, []);
 
+  // When auth loads and user is signed in, advance past auth screen
+  useEffect(() => {
+    if (isLoaded && isSignedIn && screen === 'auth') {
+      setScreen('vote');
+    }
+  }, [isLoaded, isSignedIn, screen]);
+
   const checkOnboarding = async () => {
     try {
       const city = await AsyncStorage.getItem('userCity');
       const onboarded = await AsyncStorage.getItem('onboarded');
       if (onboarded && city) {
         setUserCity(city);
-        setScreen('vote');
+        setScreen('auth');
       }
     } catch {
       // AsyncStorage read failed — stay on onboarding
@@ -37,6 +50,10 @@ export default function App() {
       // AsyncStorage write failed — continue anyway
     }
     setUserCity(city);
+    setScreen('auth');
+  };
+
+  const handleSignedIn = () => {
     setScreen('vote');
   };
 
@@ -50,6 +67,20 @@ export default function App() {
     setScreen('vote');
   };
 
+  // If auth hasn't loaded yet, show nothing (or a splash)
+  if (!isLoaded) {
+    return <View style={styles.container} />;
+  }
+
+  // If not signed in and past onboarding, force auth screen
+  if (!isSignedIn && screen !== 'onboarding') {
+    return (
+      <View style={styles.container}>
+        <AuthScreen onSignedIn={handleSignedIn} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {screen === 'onboarding' && (
@@ -62,6 +93,14 @@ export default function App() {
         <ResultsScreen userVote={userVote} city={userCity} onVoteAgain={handleVoteAgain} />
       )}
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
+      <AppContent />
+    </ClerkProvider>
   );
 }
 
