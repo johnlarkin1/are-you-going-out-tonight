@@ -8,37 +8,12 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import { getCityAbbr } from '../lib/cityUtils';
 
 interface VoteScreenProps {
   onVote: (vote: boolean) => void;
   city: string;
 }
-
-const getCityAbbr = (city: string): string => {
-  const abbrs: Record<string, string> = {
-    'New York': 'NYC',
-    'Los Angeles': 'LA',
-    'Chicago': 'CHI',
-    'Houston': 'HOU',
-    'Miami': 'MIA',
-    'London': 'LDN',
-    'Paris': 'PAR',
-    'Berlin': 'BER',
-    'Tokyo': 'TYO',
-    'Sydney': 'SYD',
-    'Toronto': 'TOR',
-    'Austin': 'ATX',
-    'Nashville': 'NSH',
-    'Denver': 'DEN',
-    'Atlanta': 'ATL',
-    'Las Vegas': 'LAS',
-    'New Orleans': 'NOLA',
-    'Seattle': 'SEA',
-    'Portland': 'PDX',
-    'Boston': 'BOS',
-  };
-  return abbrs[city] || city.slice(0, 3).toUpperCase();
-};
 
 export default function VoteScreen({ onVote, city }: VoteScreenProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;

@@ -13,14 +13,9 @@ import {
   ScrollView,
 } from 'react-native';
 
-const { width } = Dimensions.get('window');
+import { CITIES } from '../lib/cityUtils';
 
-const CITIES = [
-  'New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami',
-  'London', 'Paris', 'Berlin', 'Tokyo', 'Sydney',
-  'Toronto', 'Austin', 'Nashville', 'Denver', 'Atlanta',
-  'Las Vegas', 'New Orleans', 'Seattle', 'Portland', 'Boston',
-];
+const { width } = Dimensions.get('window');
 
 interface OnboardingScreenProps {
   onComplete: (city: string) => void;
