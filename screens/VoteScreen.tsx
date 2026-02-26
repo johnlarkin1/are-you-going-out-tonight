@@ -19,10 +19,45 @@ interface VoteScreenProps {
   city: string;
 }
 
+function useCountdown() {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      // Get current time in ET
+      const etParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false,
+      }).formatToParts(now);
+
+      const h = parseInt(etParts.find((p) => p.type === 'hour')!.value);
+      const m = parseInt(etParts.find((p) => p.type === 'minute')!.value);
+      const s = parseInt(etParts.find((p) => p.type === 'second')!.value);
+
+      const secsLeft = (23 - h) * 3600 + (59 - m) * 60 + (60 - s);
+      const hh = Math.floor(secsLeft / 3600);
+      const mm = Math.floor((secsLeft % 3600) / 60);
+      const ss = secsLeft % 60;
+      setTimeLeft(`${hh}h ${mm.toString().padStart(2, '0')}m ${ss.toString().padStart(2, '0')}s`);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return timeLeft;
+}
+
 export default function VoteScreen({ onVote, onAlreadyVoted, city }: VoteScreenProps) {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const countdown = useCountdown();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -127,7 +162,7 @@ export default function VoteScreen({ onVote, onAlreadyVoted, city }: VoteScreenP
           </TouchableOpacity>
         )}
 
-        <Text style={styles.footer}>resets at midnight ET</Text>
+        <Text style={styles.footer}>resets in {countdown}</Text>
       </Animated.View>
     </SafeAreaView>
   );
