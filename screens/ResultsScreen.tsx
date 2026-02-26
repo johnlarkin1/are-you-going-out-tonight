@@ -10,10 +10,12 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@clerk/clerk-expo';
 import { getCityAbbr } from '../lib/cityUtils';
 import { fetchResults, ApiError } from '../lib/api';
 import type { ResultsResponse } from '../lib/types';
+import { normalizeCity } from '../lib/cityUtils';
 
 interface ResultsScreenProps {
   userVote: boolean | null;
@@ -55,13 +57,29 @@ export default function ResultsScreen({ userVote, city, onVoteAgain }: ResultsSc
   const yesBarAnim = useRef(new Animated.Value(0)).current;
   const noBarAnim = useRef(new Animated.Value(0)).current;
 
+  const cacheKey = `results_${normalizeCity(city)}`;
+
   const loadResults = async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await fetchResults(city, getToken);
       setResults(data);
+      // Cache for offline viewing
+      try { await AsyncStorage.setItem(cacheKey, JSON.stringify(data)); } catch {}
     } catch (err) {
+      // Try loading cached results on network error
+      if (err instanceof ApiError && err.code === 'NETWORK_ERROR') {
+        try {
+          const cached = await AsyncStorage.getItem(cacheKey);
+          if (cached) {
+            setResults(JSON.parse(cached));
+            setError(null);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+      }
       setError(err instanceof ApiError ? err.message : 'Failed to load results');
     } finally {
       setLoading(false);
@@ -71,6 +89,22 @@ export default function ResultsScreen({ userVote, city, onVoteAgain }: ResultsSc
   useEffect(() => {
     loadResults();
   }, []);
+
+  // Auto-refresh at midnight ET
+  useEffect(() => {
+    if (!results?.resets_at) return;
+    const resetTime = new Date(results.resets_at).getTime();
+    const msUntilReset = resetTime - Date.now();
+    if (msUntilReset <= 0 || msUntilReset > 86_400_000) return;
+
+    const timer = setTimeout(() => {
+      yesBarAnim.setValue(0);
+      noBarAnim.setValue(0);
+      loadResults();
+    }, msUntilReset);
+
+    return () => clearTimeout(timer);
+  }, [results?.resets_at]);
 
   // Animate bars when results load
   useEffect(() => {
