@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings } from '../index';
-import { clerkAuth } from '../lib/auth';
+import { deviceAuth } from '../lib/auth';
 import { getDb } from '../lib/db';
 import { normalizeCity, getVoteDateET, getNextMidnightET } from '../lib/city';
 
@@ -8,7 +8,7 @@ type ResultsEnv = { Bindings: Bindings; Variables: { userId: string } };
 
 export const resultsRoute = new Hono<ResultsEnv>();
 
-resultsRoute.get('/results/:city', clerkAuth, async (c) => {
+resultsRoute.get('/results/:city', deviceAuth, async (c) => {
   const userId = c.get('userId');
   const cityParam = decodeURIComponent(c.req.param('city'));
   const cityNormalized = normalizeCity(cityParam);

@@ -1,24 +1,17 @@
 import { createMiddleware } from 'hono/factory';
-import { verifyToken } from '@clerk/backend';
 import type { Bindings } from '../index';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type AuthEnv = { Bindings: Bindings; Variables: { userId: string } };
 
-export const clerkAuth = createMiddleware<AuthEnv>(async (c, next) => {
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Missing authorization', code: 'UNAUTHORIZED' }, 401);
+export const deviceAuth = createMiddleware<AuthEnv>(async (c, next) => {
+  const deviceId = c.req.header('X-Device-ID');
+  if (!deviceId || !UUID_RE.test(deviceId)) {
+    return c.json({ error: 'Missing or invalid device ID', code: 'UNAUTHORIZED' }, 401);
   }
 
-  const token = authHeader.slice(7);
-
-  try {
-    const payload = await verifyToken(token, {
-      secretKey: c.env.CLERK_SECRET_KEY,
-    });
-    c.set('userId', payload.sub);
-    await next();
-  } catch {
-    return c.json({ error: 'Invalid token', code: 'UNAUTHORIZED' }, 401);
-  }
+  c.set('userId', deviceId);
+  await next();
 });

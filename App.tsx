@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
+import { ClerkProvider } from '@clerk/clerk-expo';
 import { tokenCache } from './lib/tokenCache';
+import { DeviceIdProvider, useDeviceIdStatus } from './lib/DeviceIdContext';
 import OnboardingScreen from './screens/OnboardingScreen';
-import AuthScreen from './screens/AuthScreen';
 import VoteScreen from './screens/VoteScreen';
 import ResultsScreen from './screens/ResultsScreen';
 
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
 
-export type Screen = 'onboarding' | 'auth' | 'vote' | 'results';
+export type Screen = 'onboarding' | 'vote' | 'results';
 
 function AppContent() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isReady } = useDeviceIdStatus();
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [userCity, setUserCity] = useState<string>('');
   const [userVote, setUserVote] = useState<boolean | null>(null);
@@ -22,20 +22,13 @@ function AppContent() {
     checkOnboarding();
   }, []);
 
-  // When auth loads and user is signed in, advance past auth screen
-  useEffect(() => {
-    if (isLoaded && isSignedIn && screen === 'auth') {
-      setScreen('vote');
-    }
-  }, [isLoaded, isSignedIn, screen]);
-
   const checkOnboarding = async () => {
     try {
       const city = await AsyncStorage.getItem('userCity');
       const onboarded = await AsyncStorage.getItem('onboarded');
       if (onboarded && city) {
         setUserCity(city);
-        setScreen('auth');
+        setScreen('vote');
       }
     } catch {
       // AsyncStorage read failed — stay on onboarding
@@ -50,10 +43,6 @@ function AppContent() {
       // AsyncStorage write failed — continue anyway
     }
     setUserCity(city);
-    setScreen('auth');
-  };
-
-  const handleSignedIn = () => {
     setScreen('vote');
   };
 
@@ -72,18 +61,9 @@ function AppContent() {
     setScreen('vote');
   };
 
-  // If auth hasn't loaded yet, show nothing (or a splash)
-  if (!isLoaded) {
+  // Block rendering until device ID is ready
+  if (!isReady) {
     return <View style={styles.container} />;
-  }
-
-  // If not signed in and past onboarding, force auth screen
-  if (!isSignedIn && screen !== 'onboarding') {
-    return (
-      <View style={styles.container}>
-        <AuthScreen onSignedIn={handleSignedIn} />
-      </View>
-    );
   }
 
   return (
@@ -104,7 +84,9 @@ function AppContent() {
 export default function App() {
   return (
     <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
-      <AppContent />
+      <DeviceIdProvider>
+        <AppContent />
+      </DeviceIdProvider>
     </ClerkProvider>
   );
 }

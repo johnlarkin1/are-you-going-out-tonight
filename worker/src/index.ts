@@ -6,7 +6,6 @@ import { resultsRoute } from './routes/results';
 
 export type Bindings = {
   DATABASE_URL: string;
-  CLERK_SECRET_KEY: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();

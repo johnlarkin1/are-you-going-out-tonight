@@ -15,14 +15,9 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  getToken: () => Promise<string | null>,
+  deviceId: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = await getToken();
-  if (!token) {
-    throw new ApiError('Not authenticated', 401, 'UNAUTHORIZED');
-  }
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
 
@@ -32,7 +27,7 @@ async function request<T>(
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'X-Device-ID': deviceId,
         ...options.headers,
       },
     });
@@ -56,9 +51,9 @@ async function request<T>(
 
 export async function submitVote(
   payload: VotePayload,
-  getToken: () => Promise<string | null>,
+  deviceId: string,
 ): Promise<{ success: boolean; id: number }> {
-  return request('/api/vote', getToken, {
+  return request('/api/vote', deviceId, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -66,7 +61,7 @@ export async function submitVote(
 
 export async function fetchResults(
   city: string,
-  getToken: () => Promise<string | null>,
+  deviceId: string,
 ): Promise<ResultsResponse> {
-  return request(`/api/results/${encodeURIComponent(city)}`, getToken);
+  return request(`/api/results/${encodeURIComponent(city)}`, deviceId);
 }

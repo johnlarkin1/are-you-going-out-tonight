@@ -9,7 +9,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { useAuth } from '@clerk/clerk-expo';
+import { useDeviceId } from '../lib/DeviceIdContext';
 import { getCityAbbr } from '../lib/cityUtils';
 import { submitVote, ApiError } from '../lib/api';
 
@@ -54,7 +54,7 @@ function useCountdown() {
 }
 
 export default function VoteScreen({ onVote, onAlreadyVoted, city }: VoteScreenProps) {
-  const { getToken } = useAuth();
+  const deviceId = useDeviceId();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const countdown = useCountdown();
@@ -92,7 +92,7 @@ export default function VoteScreen({ onVote, onAlreadyVoted, city }: VoteScreenP
     setError(null);
 
     try {
-      await submitVote({ city, vote }, getToken);
+      await submitVote({ city, vote }, deviceId);
       onVote(vote);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'ALREADY_VOTED') {

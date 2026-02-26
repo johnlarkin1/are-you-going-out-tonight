@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings } from '../index';
-import { clerkAuth } from '../lib/auth';
+import { deviceAuth } from '../lib/auth';
 import { getDb } from '../lib/db';
 import { normalizeCity, getVoteDateET } from '../lib/city';
 
@@ -8,7 +8,7 @@ type VoteEnv = { Bindings: Bindings; Variables: { userId: string } };
 
 export const voteRoute = new Hono<VoteEnv>();
 
-voteRoute.post('/vote', clerkAuth, async (c) => {
+voteRoute.post('/vote', deviceAuth, async (c) => {
   const userId = c.get('userId');
 
   let body: { city?: string; vote?: boolean };

@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '@clerk/clerk-expo';
+import { useDeviceId } from '../lib/DeviceIdContext';
 import { getCityAbbr } from '../lib/cityUtils';
 import { fetchResults, ApiError } from '../lib/api';
 import type { ResultsResponse } from '../lib/types';
@@ -48,7 +48,7 @@ const getResultHeadline = (yesPercent: number, userVote: boolean | null): { head
 };
 
 export default function ResultsScreen({ userVote, city, onVoteAgain }: ResultsScreenProps) {
-  const { getToken } = useAuth();
+  const deviceId = useDeviceId();
   const [results, setResults] = useState<ResultsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export default function ResultsScreen({ userVote, city, onVoteAgain }: ResultsSc
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchResults(city, getToken);
+      const data = await fetchResults(city, deviceId);
       setResults(data);
       // Cache for offline viewing
       try { await AsyncStorage.setItem(cacheKey, JSON.stringify(data)); } catch {}
